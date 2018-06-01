@@ -1,41 +1,37 @@
 package com.example.robbie.week06team;
 
 import android.content.Context;
-import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.ProgressBar;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import android.os.AsyncTask;
 
 public class MainActivity extends AppCompatActivity {
 
     public List<String> list;
-
-    //private int progressInt = 0;
     private ArrayAdapter<String> itemsAdapter;
     private ListView listView;
-
+    private ProgressBar progressBar;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        final String fileName = "numbers.txt";
 
         list = new ArrayList<>();
         itemsAdapter = new ArrayAdapter<String>(MainActivity.this,
@@ -44,96 +40,30 @@ public class MainActivity extends AppCompatActivity {
         listView = (ListView) findViewById(R.id.lvItems);
         listView.setAdapter(itemsAdapter);
 
-        /** Part 1.03 **/
-        // set an event handler to the create button that:
-        // a. creates a new file in internal storage called numbers.txt
-        // b. Write the numbers 1-10 to the file, one on each line
-        // c. After each line, add a thread.sleep(250); to pause for a quarter
-        //    of a second to simulate a more difficult task.
+        progressBar = findViewById(R.id.progressBar);
+        progressBar.setMax(10);
+        progressBar.setVisibility(View.GONE);
+
+
+
         Button createButton = (Button)findViewById(R.id.button_Create);
         createButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String fileName = "numbers.txt";
-                String content = "0";
-                String newLine = "\n";
-                FileOutputStream outputStream = null;
 
-                ProgressBar progressBar = findViewById(R.id.progressBar);
-                progressBar.setProgress(0);
-                progressBar.setMax(10);
-
-                try {
-                    outputStream = openFileOutput(fileName, Context.MODE_PRIVATE);
-                    for (int i = 1; i < 11; i++) {
-                        content = Integer.toString(i);
-                        outputStream.write(content.getBytes());
-                        outputStream.write(newLine.getBytes());
-                        progressBar.setProgress(i);
-                        Thread.sleep(250);
-
-                    }
-                    outputStream.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                //display toast
-                Toast.makeText(MainActivity.this, "finished saving", Toast.LENGTH_LONG).show();
-
+                AsyncTaskCreate runner = new AsyncTaskCreate();
+                runner.execute(fileName);
             }
         });
 
-        /** Part 1.04**/
-        // Add an event handler to your Load button that does the following:
-        // a. Load the file numbers.txt and read it line by line.
-        // b. As you read each line, store each number in a list.
-        // c. After reading each line, add a Thread.sleep(250); to pause
-        //    for a quarter of a second to simulate a more difficult task.
-        // D. Verify that the numbers are being read by displaying each number
-        // to the standard output, or creating a toast or something similar,
-        // as you read each number.
         Button loadButton = (Button)findViewById(R.id.button_Load);
         loadButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                BufferedReader input = null;
-                File file = null;
 
-                ProgressBar progressBar = findViewById(R.id.progressBar);
-                progressBar.setProgress(0);
-                progressBar.setMax(10);
 
-                try {
-                    file = new File(getFilesDir(), "numbers.txt");
-
-                    input = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
-                    String line;
-                    int i = 0;
-                    while ((line = input.readLine()) != null) {
-
-                        list.add(line);
-
-                        //upate progress bar
-                        progressBar.setProgress(i);
-
-                        //display toast
-                        Toast.makeText(MainActivity.this, list.get(i), Toast.LENGTH_LONG).show();
-
-                        // put the thread to sleep
-                        try {
-                            Thread.sleep(250);
-                        }catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-
-                        i++;
-                        itemsAdapter.notifyDataSetChanged();
-                    }
-
-                }catch (IOException e) {
-                    e.printStackTrace();
-                }
-
+                AsyncTaskLoad loader =  new AsyncTaskLoad();
+                loader.execute(fileName);
             }
 
         });
@@ -143,8 +73,107 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 itemsAdapter.clear();
+                Toast.makeText(MainActivity.this, "List cleared", Toast.LENGTH_SHORT).show();
+
             }
         });
     }
 
+    private class AsyncTaskCreate extends AsyncTask<String, Integer, String> {
+
+        @Override
+        protected String doInBackground(String... params) {
+            try {
+                String content = "0";
+                String newLine = "\n";
+                FileOutputStream outputStream = null;
+                String fileName = params[0].toString();
+
+                outputStream = openFileOutput(fileName, Context.MODE_PRIVATE);
+                for (int i = 1; i < 11; i++) {
+                    content = Integer.toString(i);
+                    outputStream.write(content.getBytes());
+                    outputStream.write(newLine.getBytes());
+
+                    Thread.sleep(250);
+                    publishProgress(i);
+
+                }
+                outputStream.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return "File created successfully!";
+        }
+
+        @Override
+        protected void onPreExecute() {
+            progressBar.setProgress(0);
+            progressBar.setVisibility(View.VISIBLE);
+
+        }
+
+        @Override
+        protected void onProgressUpdate(Integer... progress) {
+            progressBar.setProgress(progress[0]);
+        }
+
+        @Override
+        protected void onPostExecute(String s) {
+            progressBar.setVisibility(View.GONE);
+            Toast.makeText(MainActivity.this, s, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private class AsyncTaskLoad extends AsyncTask<String, Integer, String> {
+
+        @Override
+        protected String doInBackground(String... params) {
+            BufferedReader input = null;
+            File file = null;
+
+            try {
+                file = new File(getFilesDir(), params[0]);
+
+                input = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
+                String line;
+                int i = 0;
+                while ((line = input.readLine()) != null) {
+
+                    list.add(line);
+
+                    // put the thread to sleep
+                    try {
+                        Thread.sleep(250);
+                    }catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+                    i++;
+                    publishProgress(i);
+
+                }
+
+            }catch (IOException e) {
+                e.printStackTrace();
+            }
+            return null;
+        }
+
+        @Override
+        protected void onPreExecute() {
+            progressBar.setProgress(0);
+            progressBar.setVisibility(View.VISIBLE);
+        }
+
+        @Override
+        protected void onProgressUpdate(Integer... i) {
+            progressBar.setProgress(i[0]);
+            itemsAdapter.notifyDataSetChanged();
+        }
+        @Override
+        protected void onPostExecute(String s) {
+            progressBar.setVisibility(View.GONE);
+        }
+    }
 }
